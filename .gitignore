@@ -1,2 +1,4 @@
 *.class
 *.xml
+/out/*
+/java/out/*
