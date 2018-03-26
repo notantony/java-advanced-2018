@@ -1,4 +1,5 @@
 *.class
 *.xml
-/out/*
-/java/out/*
+out
+java/out/*
+.idea
