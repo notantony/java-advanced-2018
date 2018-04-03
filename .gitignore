@@ -1,6 +1,6 @@
-*.class
 *.xml
 java/out/
 myout/
 .idea/
 *.iml
+out/

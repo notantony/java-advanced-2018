@@ -1,7 +1,7 @@
 package info.kgeorgiy.java.advanced.implementor;
 
 /**
- * Thrown by {@link info.kgeorgiy.java.advanced.implementor.Impler} when an error occurred.
+ * Thrown by {@link Impler} when an error occurred.
  *
  * @author Georgiy Korneev (kgeorgiy@kgeorgiy.info)
  */

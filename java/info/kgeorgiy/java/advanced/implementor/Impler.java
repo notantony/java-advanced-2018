@@ -17,7 +17,7 @@ public interface Impler {
      *
      * @param token type token to create implementation for.
      * @param root root directory.
-     * @throws info.kgeorgiy.java.advanced.implementor.ImplerException when implementation cannot be
+     * @throws ImplerException when implementation cannot be
      * generated.
      */
     void implement(Class<?> token, Path root) throws ImplerException;
