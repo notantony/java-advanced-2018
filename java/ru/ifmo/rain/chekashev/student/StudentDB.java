@@ -1,4 +1,4 @@
-package ru.ifmo.rain.chekashev.StudentGroupQuery;
+package ru.ifmo.rain.chekashev.student;
 
 import info.kgeorgiy.java.advanced.student.Group;
 import info.kgeorgiy.java.advanced.student.Student;
@@ -138,6 +138,6 @@ public class StudentDB implements StudentGroupQuery {
     public Map<String, String> findStudentNamesByGroup(Collection<Student> students, String group) {
         return streamFilter(students, predicateSample(Student::getGroup, group))
                 .collect(Collectors.toMap(Student::getLastName, Student::getFirstName,
-                BinaryOperator.minBy(Comparator.naturalOrder())));
+                        BinaryOperator.minBy(Comparator.naturalOrder())));
     }
 }
