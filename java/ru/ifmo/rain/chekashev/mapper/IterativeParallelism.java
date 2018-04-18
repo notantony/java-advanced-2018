@@ -1,6 +1,7 @@
 package ru.ifmo.rain.chekashev.mapper;
 
 import info.kgeorgiy.java.advanced.concurrent.ListIP;
+import info.kgeorgiy.java.advanced.mapper.ParallelMapper;
 import ru.ifmo.rain.chekashev.arrayset.ArraySet;
 
 import java.util.*;
@@ -11,6 +12,14 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class IterativeParallelism implements ListIP {
+    private ParallelMapper manager = null;
+
+    public IterativeParallelism() {
+    }
+
+    public IterativeParallelism(ParallelMapper one) {
+        manager = one;
+    }
 
     private void startAll(List<Thread> threads) throws InterruptedException {
         for (Thread one : threads) {
@@ -30,32 +39,49 @@ public class IterativeParallelism implements ListIP {
             n = values.size();
         }
 
-        List<Thread> threads = new ArrayList<>();
-        final ArrayList<List<U>> bucket = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) {
-            bucket.add(new ArrayList<U>());
-            final int l = (int) (((long) i) * values.size() / n);
-            final int r = (int) (((long) i + 1) * values.size() / n);
-            final int where = i;
-            threads.add(new Thread(() -> {
-                Stream<T> local = values.subList(l, r).stream();
+        final Function<List<T>, List<U>> task = new Function<List<T>, List<U>>() {
+            @Override
+            public List<U> apply(List<T> one) {
+                Stream<T> local = one.stream();
                 if (predicate != null) {
                     local = local.filter(predicate);
                 }
                 if (comparator != null) {
                     Optional<T> opt = local.max(comparator);
-                    bucket.get(where).add(mapper.apply(opt.get()));
+                    List<U> single = new ArrayList<>();
+                    single.add(mapper.apply(opt.get()));
+                    return single;
                 } else {
-                    List<U> mapped = local.map(mapper).collect(Collectors.toList());
-                    synchronized (bucket) {
-                        bucket.set(where, mapped);
-                    }
+                    return local.map(mapper).collect(Collectors.toList());
                 }
-            }));
+            }
+        };
+
+        List<List<T>> partition = new ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            int l = (int) (((long) i) * values.size() / n);
+            int r = (int) (((long) i + 1) * values.size() / n);
+            partition.add(values.subList(l, r));
         }
-        startAll(threads);
-        List<U> ret = new ArrayList<U>();
-        for (List<U> one : bucket) {
+
+        List<List<U>> stash = new ArrayList<>();
+        if (manager != null) {
+            stash = manager.map(task, partition);
+        } else {
+            List<Thread> threads = new ArrayList<>();
+            final List<List<U>> finalStash = stash;
+            for (int i = 0; i < n; i++) {
+                final int where = i;
+                stash.add(new ArrayList<>());
+                threads.add(new Thread(() -> {
+                    finalStash.set(where, task.apply(partition.get(where)));
+                }));
+            }
+            startAll(threads);
+        }
+
+        List<U> ret = new ArrayList<>();
+        for (List<U> one : stash) {
             ret.addAll(one);
         }
         return ret;
