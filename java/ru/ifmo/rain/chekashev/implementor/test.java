@@ -1,3 +1,4 @@
+/*
 package ru.ifmo.rain.chekashev.implementor;
 
 import info.kgeorgiy.java.advanced.implementor.ImplerException;
@@ -15,3 +16,4 @@ public class test {
         one.implement(String.class, Paths.get("root/"));
     }
 }
+*/

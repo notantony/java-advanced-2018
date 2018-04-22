@@ -18,7 +18,7 @@ public class ParallelMapperImpl implements ParallelMapper {
         for (int i = 0; i < threads; i++) {
             pool.add(new Thread(() -> {
                 try {
-                    while (true) {
+                    while (!Thread.currentThread().isInterrupted()) {
                         Runnable one;
                         synchronized (queue) {
                             while (queue.isEmpty()) {
@@ -29,6 +29,8 @@ public class ParallelMapperImpl implements ParallelMapper {
                         one.run();
                     }
                 } catch (InterruptedException e) {
+
+                } finally {
                     Thread.currentThread().interrupt();
                 }
             }));
@@ -82,8 +84,17 @@ public class ParallelMapperImpl implements ParallelMapper {
 
     @Override
     public void close() {
+        int badJoins = 0;
         for (Thread one : pool) {
             one.interrupt();
+            try {
+                one.join();
+            } catch (InterruptedException e) {
+                badJoins++;
+            }
+        }
+        if(badJoins > 0){
+            System.err.println(badJoins + " thread haven't joined");
         }
     }
 }

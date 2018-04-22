@@ -2,7 +2,6 @@ package ru.ifmo.rain.chekashev.mapper;
 
 import info.kgeorgiy.java.advanced.concurrent.ListIP;
 import info.kgeorgiy.java.advanced.mapper.ParallelMapper;
-import ru.ifmo.rain.chekashev.arrayset.ArraySet;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -15,47 +14,19 @@ public class IterativeParallelism implements ListIP {
     private ParallelMapper manager = null;
 
     public IterativeParallelism() {
+
     }
 
     public IterativeParallelism(ParallelMapper one) {
         manager = one;
     }
 
-    private void startAll(List<Thread> threads) throws InterruptedException {
-        for (Thread one : threads) {
-            one.start();
-        }
-        for (Thread one : threads) {
-            one.join();
-        }
-    }
-
-    private <T, U> List<U> universal(int n,
+    private <T, U> List<U> splitRun(int n,
                                      final List<T> values,
-                                     final Predicate<? super T> predicate,
-                                     final Comparator<? super T> comparator,
-                                     final Function<? super T, ? extends U> mapper) throws InterruptedException {
+                                     final Function<List<T>, List<U>> task) throws InterruptedException {
         if (n > values.size()) {
             n = values.size();
         }
-
-        final Function<List<T>, List<U>> task = new Function<List<T>, List<U>>() {
-            @Override
-            public List<U> apply(List<T> one) {
-                Stream<T> local = one.stream();
-                if (predicate != null) {
-                    local = local.filter(predicate);
-                }
-                if (comparator != null) {
-                    Optional<T> opt = local.max(comparator);
-                    List<U> single = new ArrayList<>();
-                    single.add(mapper.apply(opt.get()));
-                    return single;
-                } else {
-                    return local.map(mapper).collect(Collectors.toList());
-                }
-            }
-        };
 
         List<List<T>> partition = new ArrayList<>();
         for (int i = 0; i < n; i++) {
@@ -77,7 +48,21 @@ public class IterativeParallelism implements ListIP {
                     finalStash.set(where, task.apply(partition.get(where)));
                 }));
             }
-            startAll(threads);
+            for (Thread one : threads) {
+                one.start();
+            }
+            List<InterruptedException> badJoins = new ArrayList<>();
+            for (Thread one : threads) {
+                try {
+                    one.join();
+                } catch (InterruptedException e) {
+                    badJoins.add(e);
+                }
+            }
+            if (badJoins.size() > 0) {
+                System.err.println(badJoins.size() + " threads haven't joined");
+                throw new MultiJoinErrorException("Some threads haven't joined", badJoins);
+            }
         }
 
         List<U> ret = new ArrayList<>();
@@ -89,24 +74,25 @@ public class IterativeParallelism implements ListIP {
 
     @Override
     public String join(int threads, List<?> values) throws InterruptedException {
-        List<String> stringList = universal(threads, values, null, null, Object::toString);
-        return String.join("", stringList);
+        return String.join("", map(threads, values, Object::toString));
     }
 
     @Override
     public <T> List<T> filter(int threads, List<? extends T> values, Predicate<? super T> predicate) throws InterruptedException {
-        return universal(threads, values, predicate, null, a -> a);
+        return splitRun(threads, values,
+                one -> one.stream().filter(predicate).collect(Collectors.toList()));
     }
 
     @Override
     public <T, U> List<U> map(int threads, List<? extends T> values, Function<? super T, ? extends U> f) throws InterruptedException {
-        return universal(threads, values, null, null, f);
+        return splitRun(threads, values,
+                one -> one.stream().map(f).collect(Collectors.toList()));
     }
 
     @Override
     public <T> T maximum(int threads, List<? extends T> values, Comparator<? super T> comparator) throws InterruptedException {
-        List<T> raw = universal(threads, values, null, comparator, a -> a);
-        return raw.stream().max(comparator).get();
+        return splitRun(threads, values,
+                one -> one.stream().max(comparator).stream().collect(Collectors.toList())).stream().max(comparator).get();
     }
 
     @Override
