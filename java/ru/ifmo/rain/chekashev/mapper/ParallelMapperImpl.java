@@ -65,17 +65,15 @@ public class ParallelMapperImpl implements ParallelMapper {
                         bucket.set(where, local);
                         synchronized (done) {
                             done.inc();
-                            if (done.get() == args.size()) {
-                                done.notify();
-                            }
+                            done.notify();
                         }
                     }
                 });
-                queue.notify();
+                //queue.notify();
             }
         }
         synchronized (done) {
-            if (done.get() != args.size()) {
+            while (done.get() != args.size()) {
                 done.wait();
             }
         }
@@ -93,7 +91,7 @@ public class ParallelMapperImpl implements ParallelMapper {
                 badJoins++;
             }
         }
-        if(badJoins > 0){
+        if (badJoins > 0){
             System.err.println(badJoins + " thread haven't joined");
         }
     }

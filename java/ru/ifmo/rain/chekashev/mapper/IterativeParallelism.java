@@ -48,9 +48,7 @@ public class IterativeParallelism implements ListIP {
                     finalStash.set(where, task.apply(partition.get(where)));
                 }));
             }
-            for (Thread one : threads) {
-                one.start();
-            }
+            threads.forEach(Thread::start);
             List<InterruptedException> badJoins = new ArrayList<>();
             for (Thread one : threads) {
                 try {
@@ -92,7 +90,8 @@ public class IterativeParallelism implements ListIP {
     @Override
     public <T> T maximum(int threads, List<? extends T> values, Comparator<? super T> comparator) throws InterruptedException {
         return splitRun(threads, values,
-                one -> one.stream().max(comparator).stream().collect(Collectors.toList())).stream().max(comparator).get();
+                one -> one.stream().max(comparator).stream().collect(Collectors.toList()))
+                .stream().max(comparator).get();
     }
 
     @Override
