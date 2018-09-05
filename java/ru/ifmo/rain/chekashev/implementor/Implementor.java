@@ -1,4 +1,3 @@
-/*
 package ru.ifmo.rain.chekashev.implementor;
 
 import info.kgeorgiy.java.advanced.implementor.Impler;
@@ -24,8 +23,6 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 
-import static java.nio.charset.StandardCharsets.US_ASCII;
-
 public class Implementor implements JarImpler {
     private Class<?> token;
     private Writer writer;
@@ -42,14 +39,13 @@ public class Implementor implements JarImpler {
             ARG = "arg";
 
 
-*
-     * Checks if any passed parameter is incorrect or <tt>null</tt>, otherwise an exception is thrown.
+    /**
+     * Checks if any of passed parameters is incorrect or <tt>null</tt>, otherwise an exception is thrown.
      *
      * @param token first parameter
      * @param root  second parameter
      * @throws ImplerException is thrown any parameter is <tt>null</tt> or class cannot be implemented
-
-
+     */
     private void checkParameters(Class<?> token, Path root) throws ImplerException {
         if (token == null) {
             throw new ImplerException("Class token cannot be null");
@@ -68,16 +64,17 @@ public class Implementor implements JarImpler {
         }
     }
 
-*
-     * Creates java file for class with default implementation.
-     * Creates java file for <tt>token</tt> in passed path <tt>root</tt> with default implementation.
+
+    /**
+     * Produces java file for class with default implementation.
+     * <p>
+     * Produces java file for <tt>token</tt> in passed path <tt>root</tt> with default implementation.
      * <tt>token</tt> cannot be generic, abstract, array or final
      *
      * @param token type token to create implementation for.
      * @param root  root directory.
      * @throws ImplerException is thrown if an error occurs during implementation
-
-
+     */
     @Override
     public void implement(Class<?> token, Path root) throws ImplerException {
         checkParameters(token, root);
@@ -88,7 +85,11 @@ public class Implementor implements JarImpler {
         Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
 
         if (!Files.exists(path)) {
-            makeDir(path);
+            try {
+                Files.createDirectories(path);
+            } catch (IOException e) {
+                throw new ImplerException("Cannot create output directory", e);
+            }
         }
 
         try {
@@ -116,25 +117,25 @@ public class Implementor implements JarImpler {
         }
     }
 
-*
+    /**
      * Writes package info.
+     * <p>
      * Writes information about package of the stored class <tt>token</tt> in standard format to the corresponding java file created for the class using stored <tt>writer</tt>.
      *
      * @throws IOException if error occurs while writing
-
-
+     */
     private void addPackage() throws IOException {
         writer.write(token.getPackage().toString());
     }
 
-*
+    /**
      * Writes class heading.
+     * <p>
      * Writes information about the stored class <tt>token</tt> with modifiers in standard format to the corresponding java file created for the class using stored <tt>writer</tt>.
      * Adds information about modifiers, class name, super class(if it exists) ans implemented interfaces.
      *
      * @throws IOException if error occurs while writing
-
-
+     */
     private void addName() throws IOException {//TODO: refactor spaces
         writer.write(Modifier.toString(token.getModifiers()) +
                 SPACE + (token.isInterface() ? "interface" : "class") +
@@ -159,14 +160,14 @@ public class Implementor implements JarImpler {
         }
     }
 
-*
+    /**
      * Writes methods that return default values.
+     * <p>
      * Implements methods of the stored class <tt>token</tt> in the corresponding java file using stored <tt>writer</tt>.
      * Implemented methods return default values.
      *
      * @throws IOException if error occurs while writing
-
-
+     */
     private void addFunctions() throws IOException {//TODO: abstract methods
         for (Method one : token.getMethods()) {
             writer.write(TAB + Modifier.toString(one.getModifiers()) + SPACE +
@@ -187,15 +188,14 @@ public class Implementor implements JarImpler {
         }
     }
 
-
-*
+    /**
      * Writes constructors calling super class constructors.
+     * <p>
      * Implements constructors of the stored class <tt>token</tt> in the corresponding java file using stored <tt>writer</tt>.
      * Implemented methods return default values.
      *
      * @throws IOException if error occurs while writing
-
-
+     */
     private void addConstructors() throws IOException {
         for (Constructor one : token.getConstructors()) {
             writer.write(TAB + Modifier.toString(one.getModifiers()) + SPACE +
@@ -224,16 +224,16 @@ public class Implementor implements JarImpler {
         }
     }
 
-*
+    /**
      * Writes <tt>args</tt> names in line.
+     * <p>
      * Writes <tt>args</tt> names in line divided by commas and spaces to the corresponding java file using stored <tt>writer</tt>.
      * If printNames is <tt>true</tt> also adds names <tt>arg1, arg2, arg3, ...</tt> after class names.
      *
      * @param args       array of classes which names should be written
      * @param printNames controls writing names after class names
      * @throws IOException if error occurs while writing
-
-
+     */
     private void addArgs(Class<?>[] args, boolean printNames) throws IOException {
         boolean flag = false;
         int num = 0;
@@ -251,25 +251,16 @@ public class Implementor implements JarImpler {
     }
 
 
-*
-     * Creates file at the specified <tt>root</tt> directory. If directory doesn't exist, attempts to create it.
-     *
-     * @param root - path to the file
-
-
-    private void makeDir(Path root) {
-        root = Paths.get("").toAbsolutePath().resolve(root.toString());
-        Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
-    }
-
-*
-     * Creates java file for <tt>token</tt> class implemented with {@link Implementor}.implement .
+    /**
+     * Produces <tt>.jar</tt> file implementing class or interface specified by provided <tt>token</tt>.
+     * <p>
+     * Generated class full name should be same as full name of the type token with <tt>Impl</tt> suffix
+     * added.
      *
      * @param token type token to create implementation for.
-     * @param root  root directory.
-     * @throws ImplerException is thrown if an error occurs during implementation
-
-
+     * @param root  target <tt>.jar</tt> file.
+     * @throws ImplerException when implementation cannot be generated.
+     */
     @Override
     public void implementJar(Class<?> token, Path root) throws ImplerException {
         checkParameters(token, root);
@@ -280,7 +271,7 @@ public class Implementor implements JarImpler {
         Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
 
         if (!Files.exists(path)) {
-            makeDir(path);
+            //makeDir(path);
         }
         try {
             implement(token, path);
@@ -288,7 +279,6 @@ public class Implementor implements JarImpler {
             String[] args = new String[]{
                     "-cp",
                     path.toString() + File.pathSeparator + System.getProperty("java.class.path"),
-                    getFilePath(path, token, ".java").toString()
             };
             if (compiler == null || compiler.run(null, null, null, args) != 0) {
                 throw new ImplerException("Unable to compile generated files");
@@ -296,29 +286,31 @@ public class Implementor implements JarImpler {
             Manifest manifest = new Manifest();
             manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
             manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VENDOR, "Chekashev Anton");
-            try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(outputFile), manifest)) {
+            /*try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(outputFile), manifest)) {
                 writer.putNextEntry(new ZipEntry(token.getName().replace('.', '/') + "Impl.class"));
                 Files.copy(getFilePath(tempDir, token, ), writer);
             } catch (IOException e) {
                 throw new ImplerException("Unable to write to JAR file", e);
-            }
+            }*/
         } finally {
+            /*
             try {
                 clean(tempDir);
             } catch (IOException e) {
                 System.out.println("Unable to delete temp directory: " + e.getMessage());
             }
+            */
         }
     }
 
-*
+    /**
      * Runs implementor in specified mode with arguments passed with <tt>args</tt>.
      * Arguments format: <tt>[-jar] <Class> <Path> </tt>.
      * use <tt>-jar</tt> parameter for implementing jar file.
      * If an error occurs implementing is stopped and error is shown on the screen.
      *
      * @param args arguments passed
-
+     */
 
     public static void main(String[] args) {
         if (args == null) {
@@ -346,11 +338,10 @@ public class Implementor implements JarImpler {
         } catch (ClassNotFoundException e) {
             System.out.println("Error: invalid class " + e.getMessage());
         } catch (InvalidPathException e) {
-            System.out.println("Error Invalid path " + e.getMessage());
+            System.out.println("Error: invalid path " + e.getMessage());
         } catch (ImplerException e) {
             System.out.println("Error occurred while implementing: " + e.getMessage());
         }
     }
 
 }
-*/
