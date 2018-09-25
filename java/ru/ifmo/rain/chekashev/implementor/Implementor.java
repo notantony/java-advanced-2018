@@ -20,7 +20,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.jar.Attributes;
+import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import java.util.zip.ZipEntry;
 
 public class Implementor implements JarImpler {
     private Class<?> token;
@@ -61,7 +63,7 @@ public class Implementor implements JarImpler {
      * Returns modifier without <tt>transient</tt> and <tt>abstract</tt> tags converted to string.
      *
      * @param modifier modifier to be converted
-     * @return string consisted of all other modifiers
+     * @return string which consists of all other modifiers
      */
     private String cleanModifiers(int modifier) {
         return Modifier.toString(modifier & ~Modifier.TRANSIENT & ~Modifier.ABSTRACT);
@@ -71,7 +73,7 @@ public class Implementor implements JarImpler {
      * Removes all implemented methods of <tt>token</tt> from passed {@link = java.lang.util.Set} set.
      *
      * @param token passed class
-     * @param set passed set
+     * @param set   passed set
      */
     private void clearMethodsClass(Class token, Set<Method> set) {
         for (Method one : token.getDeclaredMethods()) {
@@ -139,19 +141,19 @@ public class Implementor implements JarImpler {
     }
 
     /**
-     * Writes methods that will return default values. TODO: rewrite
+     * Implements methods that will return default values.
      * <p>
-     * Implements methods of the stored class <tt>token</tt> in the java file using stored <tt>writer</tt>.
-     * Implemented methods return default values.
+     * Writes an implementation for abstract and interface methods of the stored class <tt>token</tt> in the java file using stored <tt>writer</tt>.
+     * Methods that have been already implemented in ancestors will be added.
      *
      * @throws IOException if error occurs while writing
+     * @see #getDefaultValueString(Class)
+     * @see #clearMethodsClass(Class, Set)
      */
     private void implementMethods() throws IOException {
         HashSet<Method> set = new HashSet<>(Arrays.asList(token.getMethods()));
         set.addAll(Arrays.asList(token.getDeclaredMethods()));
         clearMethodsClass(token, set);
-
-//        for (Method one : token.getMethods()) {
         for (Method one : set) {
             writer.write(TAB + cleanModifiers(one.getModifiers()) + SPACE +
                     one.getReturnType().getCanonicalName() + SPACE + one.getName());
@@ -172,11 +174,12 @@ public class Implementor implements JarImpler {
     }
 
     /**
-     * Writes constructors calling super class constructors.
-     * <p>
-     * Writes constructors of the stored class <tt>token</tt> in the java file using stored <tt>writer</tt>.
+     * Writes default implementation of constructors.
+     * <t>
+     * Writes non-private constructors of the stored class <tt>token</tt> in the java file using stored <tt>writer</tt>.
      * Implemented constructors do nothing but call super-constructors with same arguments.
      *
+     * @return <tt>true</tt> if at least one constructor has been implemented
      * @throws IOException if error occurs while writing
      */
     private boolean implementConstructors() throws IOException {
@@ -248,6 +251,7 @@ public class Implementor implements JarImpler {
      * @param token type token to create implementation for.
      * @param root  target <tt>.jar</tt> file.
      * @throws ImplerException when implementation cannot be generated.
+     * @see #implement(Class, Path)
      */
     @Override
     public void implementJar(Class<?> token, Path root) throws ImplerException {
@@ -255,12 +259,17 @@ public class Implementor implements JarImpler {
 
         this.token = token;
 
-        root = Paths.get("").toAbsolutePath().resolve(root.toString());
+        root = Paths.get("").toAbsolutePath().resolve(root.toString());//TODO: copypaste
         Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
 
         if (!Files.exists(path)) {
-            //makeDir(path);
+            try {
+                Files.createDirectories(path);
+            } catch (IOException e) {
+                throw new ImplerException("Cannot create output directory", e);
+            }
         }
+
         try {
             implement(token, path);
             JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -274,12 +283,12 @@ public class Implementor implements JarImpler {
             Manifest manifest = new Manifest();
             manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
             manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VENDOR, "Chekashev Anton");
-            /*try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(outputFile), manifest)) {
+            try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(path), manifest)) {
                 writer.putNextEntry(new ZipEntry(token.getName().replace('.', '/') + "Impl.class"));
-                Files.copy(getFilePath(tempDir, token, ), writer);
+                //Files.copy(getFilePath(tempDir, token, ), writer);
             } catch (IOException e) {
                 throw new ImplerException("Unable to write to JAR file", e);
-            }*/
+            }
         } finally {
             /*
             try {
@@ -345,6 +354,8 @@ public class Implementor implements JarImpler {
      * If an error occurs implementing is stopped and error is shown on the screen.
      *
      * @param args arguments passed
+     * @see #implement(Class, Path)
+     * @see #implementJar(Class, Path)
      */
     public static void main(String[] args) {
         if (args == null) {
