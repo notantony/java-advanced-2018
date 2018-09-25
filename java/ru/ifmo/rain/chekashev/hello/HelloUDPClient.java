@@ -25,9 +25,10 @@ public class HelloUDPClient implements HelloClient {
         final ExecutorService pool = Executors.newFixedThreadPool(threads);
         for (int i = 0; i < threads; i++) {
             final int threadId = i;
+
             pool.submit(new Thread(() -> {
-                System.out.println("sadf");
                 try (DatagramSocket socket = new DatagramSocket(address)) {
+                    byte buffer[] = new byte[socket.getReceiveBufferSize()];
                     for (int requestId = 0; requestId < requests; requestId++) {
                         String outMessage = (prefix + threadId + "_" + requestId);
                         while (!Thread.currentThread().isInterrupted() && !socket.isClosed()) {
@@ -40,16 +41,15 @@ public class HelloUDPClient implements HelloClient {
                                 socket.send(post);
                             } catch (IOException e) {
                                 System.err.println("Error occurred while sending message " + e.getMessage());
-                                continue;
+                                break;
                             }
-                            System.out.println(outMessage);
 
-                            DatagramPacket get = new DatagramPacket(new byte[outMessage.length() + 128], outMessage.length() + 128);
+                            DatagramPacket get = new DatagramPacket(buffer, socket.getReceiveBufferSize());
                             try {
                                 socket.receive(get);
                             } catch (IOException e) {
                                 System.err.println("Error occurred while receiving message " + e.getMessage());
-                                continue;
+                                break;
                             }
 
                             String inMessage = new String(get.getData(), get.getOffset(), get.getLength(), StandardCharsets.UTF_8);
@@ -62,7 +62,7 @@ public class HelloUDPClient implements HelloClient {
                         }
                     }
                 } catch (SocketException e) {
-                    System.err.println("Cannot create socket on thread " + threadId + ". " + e.getMessage());
+                    System.err.println("Socket error on thread " + threadId + ". " + e.getMessage());
                 }
             }));
         }
@@ -89,10 +89,23 @@ public class HelloUDPClient implements HelloClient {
             System.err.println("Wrong number of arguments. Use: <host> <port> <message> <number of treads> <requests per thread>");
             return;
         }
+        int port, threads, requests;
         try {
-            new HelloUDPClient().run(args[0], Integer.parseInt(args[1]), args[2], Integer.parseInt(args[3]), Integer.parseInt(args[4]));
+            port = Integer.parseInt(args[1]);
+            threads = Integer.parseInt(args[3]);
+            requests = Integer.parseInt(args[4]);
         } catch (NumberFormatException e) {
             System.err.println("Error while parsing integer argument. " + e.getMessage());
+            return;
         }
+        if (port < 0) {
+            System.err.println("Port cannot be negative");
+            return;
+        }
+        if (threads <= 0 || requests <= 0) {
+            System.err.println("Number of threads/request should be positive");
+            return;
+        }
+        new HelloUDPClient().run(args[0], port, args[2], threads, requests);
     }
 }

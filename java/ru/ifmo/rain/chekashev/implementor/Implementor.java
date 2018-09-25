@@ -16,6 +16,10 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.Manifest;
 
@@ -52,6 +56,55 @@ public class Implementor implements JarImpler {
             return SPACE + "0";
         }
         return SPACE + "null";
+    }
+
+    /**
+     * Returns
+     * TODO:add
+     *
+     * @param modifier
+     * @return
+     */
+    private String cleanModifiers(int modifier) {
+        return Modifier.toString(modifier & ~Modifier.TRANSIENT & ~Modifier.ABSTRACT);
+    }
+
+    /**
+     * Inserts methods that should implement specified class <tt>token</tt> into {@link = java.util.Set} <tt>set</tt>
+     *
+     * @param token specified class
+     * @param set   set for inserting methods
+     */
+    /*private void insertMethods(Class token, Set<String> set) {
+        for (Method one : token.getMethods()) {
+            set.add(one.toString());
+        }
+        for (Class one : token.getInterfaces()) {
+            insertMethods(one, set);
+        }
+    }
+
+
+    private void insertMethodsClass(Class token, Set<String> set) {
+        for (Method one : token.getDeclaredMethods()) {
+            if (Modifier.isAbstract(one.getModifiers())) {
+                set.add(one.toString());
+            }
+        }
+        for (Class one : token.getInterfaces()) {
+            insertMethods(one, set);
+        }
+        insertMethodsClass(token.getSuperclass(), set);
+    }*/ //TODO:
+    private void clearMethodsClass(Class token, Set<Method> set) {
+        for (Method one : token.getDeclaredMethods()) {
+            if (!Modifier.isAbstract(one.getModifiers())) {
+                set.remove(one);
+            }
+        }
+        if (token.getSuperclass() != null) {
+            clearMethodsClass(token.getSuperclass(), set);
+        }
     }
 
     /**
@@ -98,16 +151,15 @@ public class Implementor implements JarImpler {
      *
      * @throws IOException if error occurs while writing
      */
-    private void addName() throws IOException {
-        writer.write(Modifier.toString(token.getModifiers()) +
-                SPACE + (token.isInterface() ? "" : "class") +
+    private void addHeading() throws IOException {
+        writer.write(cleanModifiers(token.getModifiers() & ~Modifier.INTERFACE) +
+                SPACE + "class" +
                 SPACE + token.getSimpleName() + "Impl");
-
-        writer.write(" extends " + token.getCanonicalName());
+        writer.write((token.isInterface() ? " implements " : " extends ") + token.getCanonicalName());
     }
 
     /**
-     * Writes methods that return default values.
+     * Writes methods that will return default values. TODO: rewrite
      * <p>
      * Implements methods of the stored class <tt>token</tt> in the java file using stored <tt>writer</tt>.
      * Implemented methods return default values.
@@ -115,25 +167,27 @@ public class Implementor implements JarImpler {
      * @throws IOException if error occurs while writing
      */
     private void implementMethods() throws IOException {
-        for (Method one : token.getMethods()) {
-            int mod = one.getModifiers();
-            if (!Modifier.isFinal(mod) && !Modifier.isVolatile(mod) && !Modifier.isTransient(mod) && !Modifier.isNative(mod)) {
-                writer.write(TAB + Modifier.toString(mod) + SPACE +
-                        one.getReturnType().getCanonicalName() + SPACE + one.getName());
-                writer.write(LBRACKET);
-                addArgs(one.getParameterTypes(), true);
-                writer.write(RBRACKET + SPACE);
-                Class<?>[] tmp = one.getExceptionTypes();
-                if (tmp.length != 0) {
-                    writer.write("throws" + SPACE);
-                    addArgs(tmp, false);
-                    writer.write(SPACE);
-                }
-                writer.write(LBRACE + ENDL +
-                        TAB + TAB + "return" +
-                        getDefaultValueString(one.getReturnType()) + NEWLINE +
-                        TAB + RBRACE + ENDL + ENDL);
+        HashSet<Method> set = new HashSet<>(Arrays.asList(token.getMethods()));
+        set.addAll(Arrays.asList(token.getDeclaredMethods()));
+        clearMethodsClass(token, set);
+
+//        for (Method one : token.getMethods()) {
+        for (Method one : set) {
+            writer.write(TAB + cleanModifiers(one.getModifiers()) + SPACE +
+                    one.getReturnType().getCanonicalName() + SPACE + one.getName());
+            writer.write(LBRACKET);
+            addArgs(one.getParameterTypes(), true);
+            writer.write(RBRACKET + SPACE);
+            Class<?>[] tmp = one.getExceptionTypes();
+            if (tmp.length != 0) {
+                writer.write("throws" + SPACE);
+                addArgs(tmp, false);
+                writer.write(SPACE);
             }
+            writer.write(LBRACE + ENDL +
+                    TAB + TAB + "return" +
+                    getDefaultValueString(one.getReturnType()) + NEWLINE +
+                    TAB + RBRACE + ENDL + ENDL);
         }
     }
 
@@ -146,8 +200,8 @@ public class Implementor implements JarImpler {
      * @throws IOException if error occurs while writing
      */
     private void addConstructors() throws IOException {
-        for (Constructor one : token.getConstructors()) {
-            writer.write(TAB + Modifier.toString(one.getModifiers()) + SPACE +
+        for (Constructor one : token.getDeclaredConstructors()) {
+            writer.write(TAB + cleanModifiers(one.getModifiers()) + SPACE +
                     token.getSimpleName() + "Impl");
             writer.write(LBRACKET);
             addArgs(one.getParameterTypes(), true);
@@ -284,7 +338,7 @@ public class Implementor implements JarImpler {
             writer = w;
             addPackage();
             writer.write(NEWLINE + ENDL);
-            addName();
+            addHeading();
             writer.write(SPACE + LBRACE + ENDL);
             addConstructors();
             implementMethods();
