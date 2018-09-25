@@ -17,7 +17,6 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.jar.Attributes;
@@ -59,43 +58,21 @@ public class Implementor implements JarImpler {
     }
 
     /**
-     * Returns
-     * TODO:add
+     * Returns modifier without <tt>transient</tt> and <tt>abstract</tt> tags converted to string.
      *
-     * @param modifier
-     * @return
+     * @param modifier modifier to be converted
+     * @return string consisted of all other modifiers
      */
     private String cleanModifiers(int modifier) {
         return Modifier.toString(modifier & ~Modifier.TRANSIENT & ~Modifier.ABSTRACT);
     }
 
     /**
-     * Inserts methods that should implement specified class <tt>token</tt> into {@link = java.util.Set} <tt>set</tt>
+     * Removes all implemented methods of <tt>token</tt> from passed {@link = java.lang.util.Set} set.
      *
-     * @param token specified class
-     * @param set   set for inserting methods
+     * @param token passed class
+     * @param set passed set
      */
-    /*private void insertMethods(Class token, Set<String> set) {
-        for (Method one : token.getMethods()) {
-            set.add(one.toString());
-        }
-        for (Class one : token.getInterfaces()) {
-            insertMethods(one, set);
-        }
-    }
-
-
-    private void insertMethodsClass(Class token, Set<String> set) {
-        for (Method one : token.getDeclaredMethods()) {
-            if (Modifier.isAbstract(one.getModifiers())) {
-                set.add(one.toString());
-            }
-        }
-        for (Class one : token.getInterfaces()) {
-            insertMethods(one, set);
-        }
-        insertMethodsClass(token.getSuperclass(), set);
-    }*/ //TODO:
     private void clearMethodsClass(Class token, Set<Method> set) {
         for (Method one : token.getDeclaredMethods()) {
             if (!Modifier.isAbstract(one.getModifiers())) {
@@ -127,8 +104,11 @@ public class Implementor implements JarImpler {
         if (token.isArray()) {
             throw new ImplerException("Passed class cannot be an array");
         }
-        if (token == Enum.class) {
+        if (token.equals(Enum.class)) {
             throw new ImplerException("Passed class cannot be enum");
+        }
+        if (token.isPrimitive()) {
+            throw new ImplerException("Passed class cannot be primitive");
         }
     }
 
@@ -199,32 +179,37 @@ public class Implementor implements JarImpler {
      *
      * @throws IOException if error occurs while writing
      */
-    private void addConstructors() throws IOException {
+    private boolean implementConstructors() throws IOException {
+        boolean any = false;
         for (Constructor one : token.getDeclaredConstructors()) {
-            writer.write(TAB + cleanModifiers(one.getModifiers()) + SPACE +
-                    token.getSimpleName() + "Impl");
-            writer.write(LBRACKET);
-            addArgs(one.getParameterTypes(), true);
-            writer.write(RBRACKET + SPACE);
-            Class<?>[] tmp = one.getExceptionTypes();
-            if (tmp.length != 0) {
-                writer.write("throws" + SPACE);
-                addArgs(tmp, false);
-                writer.write(SPACE);
-            }
-            writer.write(LBRACE + ENDL +
-                    TAB + TAB + "super" + LBRACKET);
-            boolean flag = false;
-            for (int i = 0; i < one.getParameterCount(); i++) {
-                if (!flag) {
-                    flag = true;
-                } else {
-                    writer.write(COMMA + SPACE);
+            if (!Modifier.isPrivate(one.getModifiers())) {
+                any = true;
+                writer.write(TAB + cleanModifiers(one.getModifiers()) + SPACE +
+                        token.getSimpleName() + "Impl");
+                writer.write(LBRACKET);
+                addArgs(one.getParameterTypes(), true);
+                writer.write(RBRACKET + SPACE);
+                Class<?>[] tmp = one.getExceptionTypes();
+                if (tmp.length != 0) {
+                    writer.write("throws" + SPACE);
+                    addArgs(tmp, false);
+                    writer.write(SPACE);
                 }
-                writer.write(ARG + i);
+                writer.write(LBRACE + ENDL +
+                        TAB + TAB + "super" + LBRACKET);
+                boolean flag = false;
+                for (int i = 0; i < one.getParameterCount(); i++) {
+                    if (!flag) {
+                        flag = true;
+                    } else {
+                        writer.write(COMMA + SPACE);
+                    }
+                    writer.write(ARG + i);
+                }
+                writer.write(RBRACKET + NEWLINE + TAB + RBRACE + ENDL + ENDL);
             }
-            writer.write(RBRACKET + NEWLINE + TAB + RBRACE + ENDL + ENDL);
         }
+        return any;
     }
 
     /**
@@ -311,9 +296,10 @@ public class Implementor implements JarImpler {
      * Produces java file for class with default implementation.
      * <p>
      * Produces java file for <tt>token</tt> in passed path <tt>root</tt> with default implementation.
-     * <tt>token</tt> cannot be generic, abstract, array or final
+     * <tt>token</tt> cannot be generic, abstract, array or final.
+     * Passed class should have at least one non-private constructor if it is not an interface.
      *
-     * @param token type token to create implementation for.
+     * @param token class token to create implementation for.
      * @param root  root directory.
      * @throws ImplerException is thrown if an error occurs during implementation
      */
@@ -340,7 +326,9 @@ public class Implementor implements JarImpler {
             writer.write(NEWLINE + ENDL);
             addHeading();
             writer.write(SPACE + LBRACE + ENDL);
-            addConstructors();
+            if (!implementConstructors() && !token.isInterface()) {
+                throw new ImplerException("Class should have at least one constructor");
+            }
             implementMethods();
             writer.write(RBRACE);
         } catch (IOException e) {
@@ -358,7 +346,6 @@ public class Implementor implements JarImpler {
      *
      * @param args arguments passed
      */
-
     public static void main(String[] args) {
         if (args == null) {
             System.out.println("Error: args[] cannot be null");

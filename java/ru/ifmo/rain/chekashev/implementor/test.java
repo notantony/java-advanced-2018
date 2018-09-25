@@ -13,7 +13,7 @@ import java.util.Vector;
 public class test {
     public static void main(String[] args) throws ImplerException {
         Implementor one = new Implementor();
-        one.implement(Vector.class, Paths.get("root/"));
+        one.implement(javax.annotation.processing.Completions.class, Paths.get("root/"));
     }
 }
 
