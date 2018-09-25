@@ -131,39 +131,23 @@ public class Implementor implements JarImpler {
     /**
      * Writes class heading.
      * <p>
-     * Writes information about the stored class <tt>token</tt> with modifiers in standard format to the corresponding java file created for the class using stored <tt>writer</tt>.
-     * Adds information about modifiers, class name, super class(if it exists) ans implemented interfaces.
+     * Writes information about the stored class <tt>token</tt> using stored <tt>writer</tt>.
+     * Generated class extends <tt>token</tt> class and named same but with <tt>"Impl"</tt> prefix.
      *
      * @throws IOException if error occurs while writing
      */
-    private void addName() throws IOException {//TODO: refactor spaces
+    private void addName() throws IOException {
         writer.write(Modifier.toString(token.getModifiers()) +
                 SPACE + (token.isInterface() ? "interface" : "class") +
                 SPACE + token.getSimpleName() + "Impl");
 
-
-        Class tmp = token.getSuperclass();
-        if (tmp != null) {
-            writer.write(" extends " +
-                    tmp.getCanonicalName());
-        }
-
-        writer.write(" implements");
-        boolean flag = false;
-        for (Class<?> one : token.getInterfaces()) {
-            if (!flag) {
-                flag = true;
-            } else {
-                writer.write(COMMA);
-            }
-            writer.write(SPACE + one.getCanonicalName());
-        }
+        writer.write(" extends " + token.getCanonicalName());
     }
 
     /**
      * Writes methods that return default values.
      * <p>
-     * Implements methods of the stored class <tt>token</tt> in the corresponding java file using stored <tt>writer</tt>.
+     * Implements methods of the stored class <tt>token</tt> in the java file using stored <tt>writer</tt>.
      * Implemented methods return default values.
      *
      * @throws IOException if error occurs while writing
@@ -191,15 +175,15 @@ public class Implementor implements JarImpler {
     /**
      * Writes constructors calling super class constructors.
      * <p>
-     * Implements constructors of the stored class <tt>token</tt> in the corresponding java file using stored <tt>writer</tt>.
-     * Implemented methods return default values.
+     * Writes constructors of the stored class <tt>token</tt> in the java file using stored <tt>writer</tt>.
+     * Implemented constructors do nothing but call super-constructors with same arguments.
      *
      * @throws IOException if error occurs while writing
      */
     private void addConstructors() throws IOException {
         for (Constructor one : token.getConstructors()) {
             writer.write(TAB + Modifier.toString(one.getModifiers()) + SPACE +
-                    token.getSimpleName());
+                    token.getSimpleName() + "Impl");
             writer.write(LBRACKET);
             addArgs(one.getParameterTypes(), true);
             writer.write(RBRACKET + SPACE);
@@ -227,7 +211,7 @@ public class Implementor implements JarImpler {
     /**
      * Writes <tt>args</tt> names in line.
      * <p>
-     * Writes <tt>args</tt> names in line divided by commas and spaces to the corresponding java file using stored <tt>writer</tt>.
+     * Writes <tt>args</tt> names in line divided by commas and spaces to the java file using stored <tt>writer</tt>.
      * If printNames is <tt>true</tt> also adds names <tt>arg1, arg2, arg3, ...</tt> after class names.
      *
      * @param args       array of classes which names should be written
