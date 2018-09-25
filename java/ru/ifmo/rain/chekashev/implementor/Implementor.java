@@ -1,13 +1,11 @@
 package ru.ifmo.rain.chekashev.implementor;
 
-import info.kgeorgiy.java.advanced.implementor.Impler;
 import info.kgeorgiy.java.advanced.implementor.ImplerException;
 import info.kgeorgiy.java.advanced.implementor.JarImpler;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Writer;
 import java.lang.reflect.Constructor;
@@ -19,9 +17,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.jar.Attributes;
-import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
-import java.util.zip.ZipEntry;
 
 public class Implementor implements JarImpler {
     private Class<?> token;
@@ -38,6 +34,25 @@ public class Implementor implements JarImpler {
             RBRACKET = ")",
             ARG = "arg";
 
+    /**
+     * Return default value with leading space for passed <tt>token</tt> conversed to string.
+     * <p>
+     * Return " 0" for primitives, " false" for boolean and " null" for object references.
+     * If passed class is null, empty string returned.
+     *
+     * @param token class to get default value
+     * @return class default value string with single space.
+     */
+    private String getDefaultValueString(Class token) {
+        if (token.equals(boolean.class)) {
+            return SPACE + "false";
+        } else if (token.equals(void.class)) {
+            return "";
+        } else if (token.isPrimitive()) {
+            return SPACE + "0";
+        }
+        return SPACE + "null";
+    }
 
     /**
      * Checks if any of passed parameters is incorrect or <tt>null</tt>, otherwise an exception is thrown.
@@ -64,59 +79,6 @@ public class Implementor implements JarImpler {
         }
     }
 
-
-    /**
-     * Produces java file for class with default implementation.
-     * <p>
-     * Produces java file for <tt>token</tt> in passed path <tt>root</tt> with default implementation.
-     * <tt>token</tt> cannot be generic, abstract, array or final
-     *
-     * @param token type token to create implementation for.
-     * @param root  root directory.
-     * @throws ImplerException is thrown if an error occurs during implementation
-     */
-    @Override
-    public void implement(Class<?> token, Path root) throws ImplerException {
-        checkParameters(token, root);
-
-        this.token = token;
-
-        root = Paths.get("").toAbsolutePath().resolve(root.toString());
-        Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
-
-        if (!Files.exists(path)) {
-            try {
-                Files.createDirectories(path);
-            } catch (IOException e) {
-                throw new ImplerException("Cannot create output directory", e);
-            }
-        }
-
-        try {
-            writer = Files.newBufferedWriter(path.resolve(token.getSimpleName() + ".java"), StandardCharsets.US_ASCII);
-        } catch (IOException e) {
-            throw new ImplerException("Error while creating/opening output java file", e);
-        }
-
-        try {
-            addPackage();
-            writer.write(NEWLINE + ENDL);
-            addName();
-            writer.write(SPACE + LBRACE + ENDL);
-            addConstructors();
-            addFunctions();
-            writer.write(RBRACE);
-
-            writer.close();
-        } catch (IOException e) {
-            try {
-                writer.close();
-            } catch (IOException ee) {
-            }
-            throw new ImplerException("Error while writing output java file", e);
-        }
-    }
-
     /**
      * Writes package info.
      * <p>
@@ -138,7 +100,7 @@ public class Implementor implements JarImpler {
      */
     private void addName() throws IOException {
         writer.write(Modifier.toString(token.getModifiers()) +
-                SPACE + (token.isInterface() ? "interface" : "class") +
+                SPACE + (token.isInterface() ? "" : "class") +
                 SPACE + token.getSimpleName() + "Impl");
 
         writer.write(" extends " + token.getCanonicalName());
@@ -152,23 +114,26 @@ public class Implementor implements JarImpler {
      *
      * @throws IOException if error occurs while writing
      */
-    private void addFunctions() throws IOException {//TODO: abstract methods
+    private void implementMethods() throws IOException {
         for (Method one : token.getMethods()) {
-            writer.write(TAB + Modifier.toString(one.getModifiers()) + SPACE +
-                    one.getReturnType().getCanonicalName() + SPACE + one.getName());
-            writer.write(LBRACKET);
-            addArgs(one.getParameterTypes(), false);
-            writer.write(RBRACKET + SPACE);
-            Class<?>[] tmp = one.getExceptionTypes();
-            if (tmp.length != 0) {
-                writer.write("throws" + SPACE);
-                addArgs(tmp, false);
-                writer.write(SPACE);
+            int mod = one.getModifiers();
+            if (!Modifier.isFinal(mod) && !Modifier.isVolatile(mod) && !Modifier.isTransient(mod) && !Modifier.isNative(mod)) {
+                writer.write(TAB + Modifier.toString(mod) + SPACE +
+                        one.getReturnType().getCanonicalName() + SPACE + one.getName());
+                writer.write(LBRACKET);
+                addArgs(one.getParameterTypes(), true);
+                writer.write(RBRACKET + SPACE);
+                Class<?>[] tmp = one.getExceptionTypes();
+                if (tmp.length != 0) {
+                    writer.write("throws" + SPACE);
+                    addArgs(tmp, false);
+                    writer.write(SPACE);
+                }
+                writer.write(LBRACE + ENDL +
+                        TAB + TAB + "return" +
+                        getDefaultValueString(one.getReturnType()) + NEWLINE +
+                        TAB + RBRACE + ENDL + ENDL);
             }
-            writer.write(LBRACE + ENDL +
-                    TAB + TAB + "return" + SPACE +
-                    (one.getReturnType().isPrimitive() ? "0" : "null") + NEWLINE +
-                    TAB + RBRACE + ENDL + ENDL);
         }
     }
 
@@ -286,6 +251,50 @@ public class Implementor implements JarImpler {
             */
         }
     }
+
+
+    /**
+     * Produces java file for class with default implementation.
+     * <p>
+     * Produces java file for <tt>token</tt> in passed path <tt>root</tt> with default implementation.
+     * <tt>token</tt> cannot be generic, abstract, array or final
+     *
+     * @param token type token to create implementation for.
+     * @param root  root directory.
+     * @throws ImplerException is thrown if an error occurs during implementation
+     */
+    @Override
+    public void implement(Class<?> token, Path root) throws ImplerException {
+        checkParameters(token, root);
+
+        this.token = token;
+
+        root = Paths.get("").toAbsolutePath().resolve(root.toString());
+        Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
+
+        if (!Files.exists(path)) {
+            try {
+                Files.createDirectories(path);
+            } catch (IOException e) {
+                throw new ImplerException("Cannot create output directory", e);
+            }
+        }
+
+        try (Writer w = Files.newBufferedWriter(path.resolve(token.getSimpleName() + "Impl.java"), StandardCharsets.US_ASCII)) {
+            writer = w;
+            addPackage();
+            writer.write(NEWLINE + ENDL);
+            addName();
+            writer.write(SPACE + LBRACE + ENDL);
+            addConstructors();
+            implementMethods();
+            writer.write(RBRACE);
+        } catch (IOException e) {
+            System.err.println(e.getMessage());
+            throw new ImplerException("Error while writing java file", e);
+        }
+    }
+
 
     /**
      * Runs implementor in specified mode with arguments passed with <tt>args</tt>.
