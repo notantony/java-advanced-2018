@@ -8,12 +8,14 @@ import java.io.PrintWriter;
 import java.math.BigInteger;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.AbstractList;
 import java.util.Vector;
 
 public class test {
     public static void main(String[] args) throws ImplerException {
         Implementor one = new Implementor();
-        one.implement(javax.annotation.processing.Completions.class, Paths.get("root/"));
+        //one.implement(AbstractList.class, Paths.get("root/"));
+        one.implementJar(AbstractList.class, Paths.get("root/"));
     }
 }
 

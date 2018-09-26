@@ -241,7 +241,6 @@ public class Implementor implements JarImpler {
         }
     }
 
-
     /**
      * Produces <tt>.jar</tt> file implementing class or interface specified by provided <tt>token</tt>.
      * <p>
@@ -250,54 +249,39 @@ public class Implementor implements JarImpler {
      *
      * @param token type token to create implementation for.
      * @param root  target <tt>.jar</tt> file.
-     * @throws ImplerException when implementation cannot be generated.
+     * @throws ImplerException if an error occurred during implementation or generating jar
      * @see #implement(Class, Path)
      */
     @Override
     public void implementJar(Class<?> token, Path root) throws ImplerException {
-        checkParameters(token, root);
-
-        this.token = token;
 
         root = Paths.get("").toAbsolutePath().resolve(root.toString());//TODO: copypaste
         Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
 
-        if (!Files.exists(path)) {
-            try {
-                Files.createDirectories(path);
-            } catch (IOException e) {
-                throw new ImplerException("Cannot create output directory", e);
-            }
+        implement(token, root);
+
+        JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+        String[] args = new String[]{
+                "-cp",
+                path.toString() + File.pathSeparator + System.getProperty("java.class.path"),
+                path + File.separator + token.getSimpleName() + "Impl.java"
+        };
+        if (compiler == null) {
+            throw new ImplerException("Cannot compile generated file: missing java compiler");
+        } else if (compiler.run(null, System.err, System.err, args) != 0) {
+            throw new ImplerException("Error occurred while compiling java file");
         }
 
-        try {
-            implement(token, path);
-            JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-            String[] args = new String[]{
-                    "-cp",
-                    path.toString() + File.pathSeparator + System.getProperty("java.class.path"),
-            };
-            if (compiler == null || compiler.run(null, null, null, args) != 0) {
-                throw new ImplerException("Unable to compile generated files");
-            }
-            Manifest manifest = new Manifest();
-            manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
-            manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VENDOR, "Chekashev Anton");
-            try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(path), manifest)) {
-                writer.putNextEntry(new ZipEntry(token.getName().replace('.', '/') + "Impl.class"));
-                //Files.copy(getFilePath(tempDir, token, ), writer);
-            } catch (IOException e) {
-                throw new ImplerException("Unable to write to JAR file", e);
-            }
-        } finally {
-            /*
-            try {
-                clean(tempDir);
-            } catch (IOException e) {
-                System.out.println("Unable to delete temp directory: " + e.getMessage());
-            }
-            */
+        Manifest manifest = new Manifest();
+        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+        manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VENDOR, "Chekashev Anton");
+        try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(path), manifest)) {
+            writer.putNextEntry(new ZipEntry(token.getName().replace('.', '/') + "Impl.class"));
+            Files.copy(root, writer);
+        } catch (IOException e) {
+            throw new ImplerException("Unable to write to JAR file", e);
         }
+
     }
 
 

@@ -72,7 +72,6 @@ public class HelloUDPServer implements HelloServer {
 
     @Override
     public void close() {
-        isRunning = false;
         socket.close();
         pool.shutdownNow();
         try {
@@ -80,6 +79,7 @@ public class HelloUDPServer implements HelloServer {
         } catch (InterruptedException e) {
             System.err.println("Waiting for threads termination was interrupted");
         }
+        isRunning = false;
     }
 
     public static void main(String[] args) {
