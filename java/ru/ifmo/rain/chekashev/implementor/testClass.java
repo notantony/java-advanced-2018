@@ -1,4 +1,7 @@
 package ru.ifmo.rain.chekashev.implementor;
 
-public class testClass {
+import java.util.AbstractList;
+
+public abstract class testClass extends AbstractList {
+
 }

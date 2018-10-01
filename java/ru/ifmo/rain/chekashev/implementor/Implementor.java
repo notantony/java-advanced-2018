@@ -255,15 +255,20 @@ public class Implementor implements JarImpler {
     @Override
     public void implementJar(Class<?> token, Path root) throws ImplerException {
 
-        root = Paths.get("").toAbsolutePath().resolve(root.toString());//TODO: copypaste
-        Path path = root.resolve(token.getPackageName().replace('.', File.separatorChar));
+        Path tmp = Paths.get("").toAbsolutePath().resolve("tmp");//TODO: copypaste
+        if (!Files.exists(tmp)) {
+            try {
+                Files.createDirectories(tmp);
+            } catch (IOException e) {
+                throw new ImplerException("Cannot create output directory", e);
+            }
+        }
 
-        implement(token, root);
+        Path path = tmp.resolve(token.getPackageName().replace('.', File.separatorChar));
+        implement(token, tmp);
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         String[] args = new String[]{
-                "-cp",
-                path.toString() + File.pathSeparator + System.getProperty("java.class.path"),
                 path + File.separator + token.getSimpleName() + "Impl.java"
         };
         if (compiler == null) {
@@ -275,11 +280,11 @@ public class Implementor implements JarImpler {
         Manifest manifest = new Manifest();
         manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
         manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VENDOR, "Chekashev Anton");
-        try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(path), manifest)) {
-            writer.putNextEntry(new ZipEntry(token.getName().replace('.', '/') + "Impl.class"));
+        try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(root), manifest)) {
+            writer.putNextEntry(new ZipEntry(token.getPackageName().replace('.', File.separatorChar) + File.separator + token.getSimpleName() + "Impl.class"));
             Files.copy(root, writer);
         } catch (IOException e) {
-            throw new ImplerException("Unable to write to JAR file", e);
+            throw new ImplerException("Unable to write to JAR file " + e.getMessage(), e);
         }
 
     }

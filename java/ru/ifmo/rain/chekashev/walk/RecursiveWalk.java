@@ -33,7 +33,7 @@ public class RecursiveWalk {
                 while ((pathString = inputReader.readLine()) != null) {
                     try {
                         Path one = Paths.get(pathString);
-                        Files.walkFileTree(one, new SimpleFileVisitor<Path>() {
+                        Files.walkFileTree(one, new SimpleFileVisitor<>() {
                             private final Hasher hasher = new Hasher();
 
                             @Override

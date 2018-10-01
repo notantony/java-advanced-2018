@@ -15,7 +15,7 @@ public class test {
     public static void main(String[] args) throws ImplerException {
         Implementor one = new Implementor();
         //one.implement(AbstractList.class, Paths.get("root/"));
-        one.implementJar(AbstractList.class, Paths.get("root/"));
+        one.implementJar(testClass.class, Paths.get("root.jar"));
     }
 }
 

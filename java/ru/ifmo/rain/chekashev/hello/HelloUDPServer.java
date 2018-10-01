@@ -77,7 +77,7 @@ public class HelloUDPServer implements HelloServer {
         try {
             pool.awaitTermination(30, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            System.err.println("Waiting for threads termination was interrupted");
+            System.err.println("Waiting for threads termination was interrupted " + e.getMessage());
         }
         isRunning = false;
     }
