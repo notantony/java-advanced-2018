@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"info.kgeorgiy.java.advanced.implementor"},{"l":"ru.ifmo.rain.chekashev.implementor"}]

@@ -1,0 +1,3 @@
+Manifest-Version: 1.0
+Implementation-Vendor: Chekashev Anton
+Main-Class: ru.ifmo.rain.chekashev.implementor.Implementor

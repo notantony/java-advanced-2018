@@ -1,0 +1,2 @@
+mkdir outjavadoc
+javadoc -d outjavadoc\ -cp lib\*;artifacts\*; -sourcepath java\ -author -private -link https://docs.oracle.com/javase/9/docs/api ru.ifmo.rain.chekashev.implementor info.kgeorgiy.java.advanced.implementor
