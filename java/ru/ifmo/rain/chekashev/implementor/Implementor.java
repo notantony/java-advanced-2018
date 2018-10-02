@@ -12,10 +12,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.InvalidPathException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -121,7 +119,7 @@ public class Implementor implements JarImpler {
      *
      * @throws IOException if error occurs while writing
      */
-    private void addPackage() throws IOException {
+    private void writePackage() throws IOException {
         writer.write(token.getPackage().toString());
     }
 
@@ -133,7 +131,7 @@ public class Implementor implements JarImpler {
      *
      * @throws IOException if error occurs while writing
      */
-    private void addHeading() throws IOException {
+    private void writeHeading() throws IOException {
         writer.write(cleanModifiers(token.getModifiers() & ~Modifier.INTERFACE) +
                 SPACE + "class" +
                 SPACE + token.getSimpleName() + "Impl");
@@ -150,7 +148,7 @@ public class Implementor implements JarImpler {
      * @see #getDefaultValueString(Class)
      * @see #clearMethodsClass(Class, Set)
      */
-    private void implementMethods() throws IOException {
+    private void writeMethods() throws IOException {
         HashSet<Method> set = new HashSet<>(Arrays.asList(token.getMethods()));
         set.addAll(Arrays.asList(token.getDeclaredMethods()));
         clearMethodsClass(token, set);
@@ -255,21 +253,17 @@ public class Implementor implements JarImpler {
     @Override
     public void implementJar(Class<?> token, Path root) throws ImplerException {
 
-        Path tmp = Paths.get("").toAbsolutePath().resolve("tmp");//TODO: copypaste
-        if (!Files.exists(tmp)) {
-            try {
-                Files.createDirectories(tmp);
-            } catch (IOException e) {
-                throw new ImplerException("Cannot create output directory", e);
-            }
-        }
-
-        Path path = tmp.resolve(token.getPackageName().replace('.', File.separatorChar));
+        Path tmp = root.getParent().resolve("tmp");
         implement(token, tmp);
+        Path src = tmp.resolve(token.getPackageName().replace('.', File.separatorChar));
 
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         String[] args = new String[]{
-                path + File.separator + token.getSimpleName() + "Impl.java"
+                "-cp",
+                src + File.pathSeparator + System.getProperty("java.class.path"),
+                "-encoding",
+                "UTF8",
+                src + File.separator + token.getSimpleName() + "Impl.java"
         };
         if (compiler == null) {
             throw new ImplerException("Cannot compile generated file: missing java compiler");
@@ -282,9 +276,27 @@ public class Implementor implements JarImpler {
         manifest.getMainAttributes().put(Attributes.Name.IMPLEMENTATION_VENDOR, "Chekashev Anton");
         try (JarOutputStream writer = new JarOutputStream(Files.newOutputStream(root), manifest)) {
             writer.putNextEntry(new ZipEntry(token.getPackageName().replace('.', File.separatorChar) + File.separator + token.getSimpleName() + "Impl.class"));
-            Files.copy(root, writer);
+            Files.copy(Paths.get(src + "Impl.class"), writer);
         } catch (IOException e) {
-            throw new ImplerException("Unable to write to JAR file " + e.getMessage(), e);
+            throw new ImplerException("Error occured while writing jar file: " + e.getMessage(), e);
+        } finally {
+            try {
+                Files.walkFileTree(src, new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                        Files.delete(file);
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+                        Files.delete(dir);
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
+            } catch (IOException e) {
+                System.err.println("Error: cannot delete temporary directory: " + e.getMessage());
+            }
         }
 
     }
@@ -318,20 +330,20 @@ public class Implementor implements JarImpler {
             }
         }
 
-        try (Writer w = Files.newBufferedWriter(path.resolve(token.getSimpleName() + "Impl.java"), StandardCharsets.US_ASCII)) {
+        try (Writer w = Files.newBufferedWriter(path.resolve(token.getSimpleName() + "Impl.java"), StandardCharsets.UTF_8)) {
             writer = w;
-            addPackage();
+            writePackage();
             writer.write(NEWLINE + ENDL);
-            addHeading();
+            writeHeading();
             writer.write(SPACE + LBRACE + ENDL);
             if (!implementConstructors() && !token.isInterface()) {
                 throw new ImplerException("Class should have at least one constructor");
             }
-            implementMethods();
+            writeMethods();
             writer.write(RBRACE);
         } catch (IOException e) {
-            System.err.println(e.getMessage());
-            throw new ImplerException("Error while writing java file", e);
+            System.err.println("Error while writing java file: " + e.getMessage());
+            throw new ImplerException(e);
         }
     }
 
