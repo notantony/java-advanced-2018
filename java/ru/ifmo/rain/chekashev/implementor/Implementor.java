@@ -5,6 +5,7 @@ import info.kgeorgiy.java.advanced.implementor.JarImpler;
 
 import javax.tools.JavaCompiler;
 import javax.tools.ToolProvider;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
 import java.io.Writer;
@@ -303,7 +304,6 @@ public class Implementor implements JarImpler {
     }
 
 
-
     /**
      * Produces java file for class with default implementation.
      * <p>
@@ -332,7 +332,19 @@ public class Implementor implements JarImpler {
             }
         }
 
-        try (Writer w = Files.newBufferedWriter(path.resolve(token.getSimpleName() + "Impl.java"), StandardCharsets.UTF_8)) {
+        try (Writer w = new BufferedWriter(Files.newBufferedWriter(path.resolve(token.getSimpleName() + "Impl.java"), StandardCharsets.UTF_8)) {
+            @Override
+            public void write(String s) throws IOException{
+                for (char one: s.toCharArray()) {
+                    if (one >= 128) {
+                        super.write(String.format("\\u%04X", (int) one));
+                    } else {
+                        super.write(one);
+                    }
+                }
+            }
+        }) {
+
             writer = w;
             writePackage();
             writer.write(NEWLINE + ENDL);
