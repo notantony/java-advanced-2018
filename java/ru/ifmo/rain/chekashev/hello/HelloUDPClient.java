@@ -15,19 +15,26 @@ public class HelloUDPClient implements HelloClient {
 
     @Override
     public void run(String host, int port, String prefix, int threads, int requests) {
-        final SocketAddress address;
+        final InetSocketAddress address;
+
         try {
-            address = new InetSocketAddress(InetAddress.getByName(host), port);
-        } catch (UnknownHostException e) {
-            System.err.println("Bad host " + e.getMessage());
+            address = new InetSocketAddress(host, port);
+        } catch (IllegalArgumentException e) {
+            System.err.println("Unexpected parameters when running client: " + e.getMessage());
             return;
         }
+        if (address.getAddress() == null) {
+            System.err.println("Couldn't resolve address from the specified arguments");
+            return;
+        }
+
         final ExecutorService pool = Executors.newFixedThreadPool(threads);
         for (int i = 0; i < threads; i++) {
             final int threadId = i;
 
             pool.submit(new Thread(() -> {
-                try (DatagramSocket socket = new DatagramSocket(address)) {
+                try (DatagramSocket socket = new DatagramSocket()) {
+                    socket.setSoTimeout(requests * 10);
                     byte buffer[] = new byte[socket.getReceiveBufferSize()];
                     for (int requestId = 0; requestId < requests; requestId++) {
                         String outMessage = (prefix + threadId + "_" + requestId);
@@ -40,7 +47,7 @@ public class HelloUDPClient implements HelloClient {
                             try {
                                 socket.send(post);
                             } catch (IOException e) {
-                                System.err.println("Error occurred while sending message " + e.getMessage());
+                                System.err.println("Error occurred while sending message: " + e.getMessage());
                                 break;
                             }
 
@@ -48,27 +55,26 @@ public class HelloUDPClient implements HelloClient {
                             try {
                                 socket.receive(get);
                             } catch (IOException e) {
-                                System.err.println("Error occurred while receiving message " + e.getMessage());
-                                break;
+                                System.err.println("Error occurred while receiving message: " + e.getMessage() + " Retrying request.");
                             }
 
                             String inMessage = new String(get.getData(), get.getOffset(), get.getLength(), StandardCharsets.UTF_8);
-                            if (inMessage.contains(inMessage)) {
-                                System.out.println(inMessage);
+                            if (inMessage.endsWith(outMessage) || inMessage.contains(outMessage + " ")) {
                                 break;
                             } else {
-                                System.out.println("Unexpected message received. Retrying request.");
+                                System.err.println("Unexpected message received. Retrying request.");
                             }
                         }
                     }
                 } catch (SocketException e) {
-                    System.err.println("Socket error on thread " + threadId + ". " + e.getMessage());
+                    System.err.println("Socket error on thread " + threadId + ": " + e.getMessage());
+                    System.err.println("address: " + host + ":" + port);
                 }
             }));
         }
         pool.shutdown();
         try {
-            pool.awaitTermination(((long)threads) * requests * 30, TimeUnit.SECONDS);
+            pool.awaitTermination(threads * requests * 10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             System.err.println("Waiting for threads termination was interrupted");
         }

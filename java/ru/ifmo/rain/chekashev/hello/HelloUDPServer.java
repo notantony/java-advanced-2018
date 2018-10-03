@@ -13,6 +13,7 @@ public class HelloUDPServer implements HelloServer {
     private DatagramSocket socket;
     private ExecutorService pool;
     private boolean isRunning;
+    private int threads;
 
     public HelloUDPServer() {
         isRunning = false;
@@ -20,6 +21,7 @@ public class HelloUDPServer implements HelloServer {
 
     @Override
     public void start(int port, int threads) {
+        this.threads = threads;
         if (isRunning) {
             System.out.println("Server is already running.");
             return;
@@ -33,7 +35,7 @@ public class HelloUDPServer implements HelloServer {
             System.err.println("Cannot create server socket " + e.getMessage());
             return;
         }
-        System.out.println("Server started at " + socket.getInetAddress());
+        System.out.println("Server started at port " + port);
         threads++;
         pool = new ThreadPoolExecutor(
                 threads,
@@ -50,21 +52,21 @@ public class HelloUDPServer implements HelloServer {
                     try {
                         socket.receive(get);
                     } catch (IOException e) {
-                        System.err.println("Error occurred while receiving message " + e.getMessage());//TODO
+                        System.err.println(e.getMessage());
                     }
-                    pool.submit(() -> {
-                        String outMessage = "Hello, " + new String(get.getData(), get.getOffset(), get.getLength(), StandardCharsets.UTF_8);
-                        DatagramPacket post = new DatagramPacket(
-                                outMessage.getBytes(StandardCharsets.UTF_8),
-                                outMessage.length(),
-                                get.getSocketAddress()
-                        );
-                        try {
-                            socket.send(post);
-                        } catch (IOException e) {
-                            System.err.println("Error occurred while sending message " + e.getMessage());
-                        }
-                    });
+
+                    String outMessage = "Hello, " + new String(get.getData(), get.getOffset(), get.getLength(), StandardCharsets.UTF_8);
+                    DatagramPacket post = new DatagramPacket(
+                            outMessage.getBytes(StandardCharsets.UTF_8),
+                            outMessage.length(),
+                            get.getSocketAddress()
+                    );
+                    try {
+                        socket.send(post);
+                    } catch (IOException e) {
+                        System.err.println("Error occurred while sending message " + e.getMessage());
+                    }
+
                 }
             });
         }
@@ -75,7 +77,7 @@ public class HelloUDPServer implements HelloServer {
         socket.close();
         pool.shutdownNow();
         try {
-            pool.awaitTermination(30, TimeUnit.SECONDS);
+            pool.awaitTermination(threads * 10, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             System.err.println("Waiting for threads termination was interrupted " + e.getMessage());
         }
@@ -94,7 +96,7 @@ public class HelloUDPServer implements HelloServer {
             }
         }
         if (args.length != 2) {
-            System.err.println("Wrong number of arguments. Use: <port> <number of treads>");
+            System.err.println("Wrong number of arguments. Usage: <port> <number of treads>");
             return;
         }
         try {
